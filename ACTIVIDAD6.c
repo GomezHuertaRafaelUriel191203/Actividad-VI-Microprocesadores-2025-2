@@ -2,86 +2,102 @@
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 
+// Configuración de los puertos y direcciones para I2C y OLED
 #define I2C_PORT i2c0
 #define OLED_ADDR 0x3C
-#define OLED_WIDTH 128
+// Ancho del OLED en píxeles
+#define OLED_WIDTH 128 
+// Alto del OLED en píxeles
 #define OLED_HEIGHT 64
 
-#define OLED_CMD 0x00
+// Comandos para distinguir entre datos y comandos en el OLED
+#define OLED_CMD 0x00 
 #define OLED_DATA 0x40
 
+
+// Rango de caracteres ASCII (de 'A' a 'Z') y tamaño de fuente
 #define LOCHAR 65
 #define HICHAR 90
+ // Altura en bits de cada carácter
 #define FONT_HEIGHT 8
+ // Ancho en bytes de cada carácter
 #define FONT_BWIDTH 1
 
-// Matriz de caracteres A-Z
+// Matriz de datos que define la apariencia de cada letra de A a Z en la fuente 8x8
 const char FONT[HICHAR-LOCHAR+1][FONT_HEIGHT*FONT_BWIDTH] = {
+ // Representación de 'A' y otras letras hasta 'Z'
 { 0xF8,0x24,0x24,0xF8,0x00,0x00,0x00,0x00 },{ 0xFC,0x94,0x98,0x60,0x00,0x00,0x00,0x00 },{ 0x78,0x84,0x84,0x48,0x00,0x00,0x00,0x00 },{ 0xFC,0x84,0x48,0x30,0x00,0x00,0x00,0x00 },{ 0xFC,0x94,0x94,0x84,0x00,0x00,0x00,0x00 },{ 0xFC,0x14,0x14,0x04,0x00,0x00,0x00,0x00 },{ 0x78,0x84,0xA4,0x68,0x00,0x00,0x00,0x00 },{ 0xFC,0x10,0x10,0xFC,0x00,0x00,0x00,0x00 },{ 0x84,0xFC,0x84,0x00,0x00,0x00,0x00,0x00 },{ 0x40,0x80,0x84,0x7C,0x00,0x00,0x00,0x00 },{ 0xFC,0x10,0x28,0xC4,0x00,0x00,0x00,0x00 },{ 0xFC,0x80,0x80,0x80,0x00,0x00,0x00,0x00 },{ 0xFC,0x18,0x18,0xFC,0x00,0x00,0x00,0x00 },{ 0xFC,0x18,0x60,0xFC,0x00,0x00,0x00,0x00 },{ 0x78,0x84,0x84,0x78,0x00,0x00,0x00,0x00 },{ 0xFC,0x14,0x14,0x08,0x00,0x00,0x00,0x00 },{ 0x78,0xC4,0x84,0x78,0x00,0x00,0x00,0x00 },{ 0xFC,0x34,0x54,0x88,0x00,0x00,0x00,0x00 },{ 0x48,0x94,0xA4,0x48,0x00,0x00,0x00,0x00 },{ 0x04,0xFC,0x04,0x00,0x00,0x00,0x00,0x00 },{ 0x7C,0x80,0x80,0x7C,0x00,0x00,0x00,0x00 },{ 0x1C,0xE0,0xE0,0x1C,0x00,0x00,0x00,0x00 },{ 0xFC,0x60,0x60,0xFC,0x00,0x00,0x00,0x00 },{ 0xCC,0x30,0x30,0xCC,0x00,0x00,0x00,0x00 },{ 0x1C,0x20,0xE0,0x1C,0x00,0x00,0x00,0x00 },{ 0xC4,0xA4,0x94,0x8C,0x00,0x00,0x00,0x00 },};
+   
 
-
-// Inicializar I2C para OLED
+// Inicialización de I2C para comunicarse con la OLED
 void i2c_start_oled() {
+    // Inicializa I2C a 400kHz
     i2c_init(I2C_PORT, 400 * 1000);
+     // Pin 4 como I2C
     gpio_set_function(4, GPIO_FUNC_I2C);
+    // Pin 5 como I2C
     gpio_set_function(5, GPIO_FUNC_I2C);
+     // Resistencia de pull-up en el pin 4
     gpio_pull_up(4);
+    // Resistencia de pull-up en el pin 5
     gpio_pull_up(5);
 }
 
-// Enviar comando al OLED
+// Envío del comando de configuación a la OLED
 void oled_command(uint8_t cmd) {
+    // Preparar el comando
     uint8_t data[2] = {OLED_CMD, cmd};
+    // Enviar por I2C
     i2c_write_blocking(I2C_PORT, OLED_ADDR, data, 2, false);
 }
 
-// Inicializar OLED
+// Secuencia de inicialización para configurar el OLED
 void oled_start() {
     uint8_t init_sequence[] = {0xAE, 0x20, 0x00, 0xB0, 0xC8, 0x00, 0x10, 0x40, 0x81, 0xFF,
                                0xA1, 0xA6, 0xA8, 0x3F, 0xA4, 0xD3, 0x00, 0xD5, 0xF0, 0xD9,
                                0x22, 0xDA, 0x12, 0xDB, 0x20, 0x8D, 0x14, 0xAF};
     for (int i = 0; i < sizeof(init_sequence); i++) {
-        oled_command(init_sequence[i]);
+        oled_command(init_sequence[i]);  // Enviar cada comando en la secuencia
     }
 }
 
-// Limpiar pantalla OLED
+// Limpiar la pantalla OLED llenandola de pixeles apagados
 void oled_wipe() {
-    for (int page = 0; page < 8; page++) {
-        oled_command(0xB0 + page);
-        oled_command(0x00);
-        oled_command(0x10);
+    for (int page = 0; page < 8; page++) { // Recorrer cada "página" de la pantalla
+        oled_command(0xB0 + page); // Seleccionar página
+        oled_command(0x00);  // Columna baja
+        oled_command(0x10); // Columna alta
         for (int col = 0; col < OLED_WIDTH; col++) {
-            uint8_t data[2] = {OLED_DATA, 0x00};
-            i2c_write_blocking(I2C_PORT, OLED_ADDR, data, 2, false);
+            uint8_t data[2] = {OLED_DATA, 0x00};  // Enviar datos apagados
+            i2c_write_blocking(I2C_PORT, OLED_ADDR, data, 2, false); // Escribir en OLED
         }
     }
 }
 
-// Dibujar carácter en una posición específica
+// Dibujar un carácter en una posición específica de la OLED
 void oled_put_char(uint8_t page, uint8_t col, char c) {
-    if (c < LOCHAR || c > HICHAR) return;
-    oled_command(0xB0 + page);
-    oled_command(0x00 + (col & 0x0F));
-    oled_command(0x10 + (col >> 4));
+    if (c < LOCHAR || c > HICHAR) return;  // Verifica que el carácter esté en rango
+    oled_command(0xB0 + page); // Seleccionar página de inicio
+    oled_command(0x00 + (col & 0x0F)); // Columna baja
+    oled_command(0x10 + (col >> 4));  // Columna alta
     for (int i = 0; i < FONT_HEIGHT; i++) {
-        uint8_t data[2] = {OLED_DATA, FONT[c - LOCHAR][i]};
-        i2c_write_blocking(I2C_PORT, OLED_ADDR, data, 2, false);
+        uint8_t data[2] = {OLED_DATA, FONT[c - LOCHAR][i]}; // Datos del carácter
+        i2c_write_blocking(I2C_PORT, OLED_ADDR, data, 2, false); // Enviar a la OLED
     }
 }
 
-// Dibujar texto completo en la pantalla OLED
+// Dibujar texto completo en la pantalla OLED a partir de una cadena
 void oled_display_text(uint8_t page, uint8_t start_col, const char* text) {
-    for (int i = 0; text[i] != '\0'; i++) {
-        oled_put_char(page, start_col + (i * FONT_BWIDTH * 8), text[i]);
+    for (int i = 0; text[i] != '\0'; i++) { 
+        oled_put_char(page, start_col + (i * FONT_BWIDTH * 8), text[i]);  // Dibujar cada carácter
     }
 }
 
 int main() {
-    stdio_init_all();
-    i2c_start_oled();
-    oled_start();
-    oled_wipe();
+    stdio_init_all(); // Inicializar estándar de entrada/salida (para debug)
+    i2c_start_oled(); // Configurar la I2C
+    oled_start(); // Inicializar la OLED
+    oled_wipe();  // Limpiar pantalla
 
     // Mostrar "RAFAEL URIEL" en la primera línea
     oled_display_text(0, 0, "RAFAEL URIEL");
